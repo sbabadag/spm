@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Linking, ActivityIndicator } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { ref, onValue } from 'firebase/database';
 import { database } from '../firebaseConfig'; // Adjust the import path as needed
@@ -51,7 +51,8 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <View style={styles.container}>
+      <Text style={styles.label}>Select Project</Text>
       <Picker
         selectedValue={selectedProject}
         style={styles.picker}
@@ -97,7 +98,7 @@ const HomeScreen = ({ navigation, route }) => {
           <Text>Loading PDF...</Text>
         </View>
       )}
-    </ScrollView>
+    </View>
   );
 };
 
@@ -108,6 +109,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     backgroundColor: '#f5f5f5',
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
   },
   button: {
     backgroundColor: '#007bff',
@@ -127,6 +133,7 @@ const styles = StyleSheet.create({
     borderColor: '#cccccc',
     borderRadius: 5,
     backgroundColor: '#ffffff',
+    marginTop: 20,
   },
   tableRow: {
     flexDirection: 'row',
@@ -159,6 +166,7 @@ const styles = StyleSheet.create({
     height: 50,
     width: '80%',
     marginBottom: 20,
+    marginTop: 10, // Add marginTop to create space above the picker
   },
   pdfButton: {
     backgroundColor: '#007bff',

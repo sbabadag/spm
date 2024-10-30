@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Alert, TouchableOpacity, StyleSheet, Platform, ScrollView, TextInput, ProgressBarAndroid } from 'react-native';
+import { View, Text, Alert, TouchableOpacity, StyleSheet, Platform, TextInput, ProgressBar, FlatList } from 'react-native';
 import { ref, set, push } from 'firebase/database';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { database } from '../firebaseConfig'; // Adjust the import path as needed
@@ -125,7 +125,7 @@ const CreateProjectScreen = ({ navigation }) => {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <View style={styles.container}>
       <TextInput
         style={styles.input}
         placeholder="Enter Project Name"
@@ -152,7 +152,7 @@ const CreateProjectScreen = ({ navigation }) => {
       {loading && (
         <View style={styles.progressContainer}>
           <Text>Uploading PDF files...</Text>
-          <ProgressBarAndroid styleAttr="Horizontal" indeterminate={false} progress={uploadProgress / 100} />
+          <ProgressBar styleAttr="Horizontal" indeterminate={false} progress={uploadProgress / 100} />
         </View>
       )}
       <TouchableOpacity
@@ -169,7 +169,7 @@ const CreateProjectScreen = ({ navigation }) => {
           <Text style={styles.buttonText}>Return to Home</Text>
         </TouchableOpacity>
       )}
-    </ScrollView>
+    </View>
   );
 };
 
