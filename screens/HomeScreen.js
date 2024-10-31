@@ -63,6 +63,14 @@ const HomeScreen = ({ navigation, route }) => {
 
   const handleQuantityChange = (index, field, value) => {
     const updatedRecords = [...filteredRecords];
+    const quantity = parseFloat(updatedRecords[index].Quantity || 0);
+    const quantityDone = parseFloat(value);
+
+    if (quantityDone > quantity) {
+      Alert.alert('Hata', 'Yapılan Miktar, Toplam Miktardan fazla olamaz.');
+      return;
+    }
+
     updatedRecords[index][field] = value;
     setFilteredRecords(updatedRecords);
 
@@ -93,7 +101,14 @@ const HomeScreen = ({ navigation, route }) => {
       const recordIndex = selectedProjectData.records.findIndex(record => record.POSNO === selectedPOSNO);
       if (recordIndex !== -1) {
         const updatedRecords = [...selectedProjectData.records];
-        updatedRecords[recordIndex].QuantityDone = parseFloat(updatedRecords[recordIndex].QuantityDone || 0) + parseFloat(quantity);
+        const newQuantityDone = parseFloat(updatedRecords[recordIndex].QuantityDone || 0) + parseFloat(quantity);
+
+        if (newQuantityDone > parseFloat(updatedRecords[recordIndex].Quantity)) {
+          Alert.alert('Hata', 'Yapılan Miktar, Toplam Miktardan fazla olamaz.');
+          return;
+        }
+
+        updatedRecords[recordIndex].QuantityDone = newQuantityDone;
         updatedRecords[recordIndex].Date = new Date().toISOString();
 
         // Update the database
@@ -110,10 +125,10 @@ const HomeScreen = ({ navigation, route }) => {
 
   const renderTableHeader = () => (
     <View style={styles.tableRow}>
-      <Text style={[styles.tableCell, styles.tableHeader]}>Yapılan Miktar</Text>
-      <Text style={[styles.tableCell, styles.tableHeader]}>Gönderilen Miktar</Text>
       <Text style={[styles.tableCell, styles.tableHeader]}>POSNO</Text>
       <Text style={[styles.tableCell, styles.tableHeader]}>Miktar</Text>
+      <Text style={[styles.tableCell, styles.tableHeader]}>Yapılan Miktar</Text>
+      <Text style={[styles.tableCell, styles.tableHeader]}>Gönderilen Miktar</Text>
       <Text style={[styles.tableCell, styles.tableHeader]}>Profil</Text>
       <Text style={[styles.tableCell, styles.tableHeader]}>Ağırlık</Text>
       <Text style={[styles.tableCell, styles.tableHeader]}>PDF</Text>
@@ -122,8 +137,13 @@ const HomeScreen = ({ navigation, route }) => {
 
   const renderTableRow = ({ item, index }) => (
     <View style={styles.tableRow}>
+      <Text style={styles.tableCell}>{item.POSNO}</Text>
+      <Text style={styles.tableCell}>{item.Quantity}</Text>
       <TextInput
-        style={styles.tableCell}
+        style={[
+          styles.tableCell,
+          parseFloat(item.QuantityDone) === parseFloat(item.Quantity) && styles.tableCellDone
+        ]}
         value={item.QuantityDone?.toString() || ''}
         onChangeText={(value) => handleQuantityChange(index, 'QuantityDone', value)}
         keyboardType="numeric"
@@ -134,8 +154,6 @@ const HomeScreen = ({ navigation, route }) => {
         onChangeText={(value) => handleQuantityChange(index, 'QuantitySent', value)}
         keyboardType="numeric"
       />
-      <Text style={styles.tableCell}>{item.POSNO}</Text>
-      <Text style={styles.tableCell}>{item.Quantity}</Text>
       <Text style={styles.tableCell}>{item.Profile}</Text>
       <Text style={styles.tableCell}>{item.Weight}</Text>
       <TouchableOpacity
@@ -271,7 +289,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tableCell: {
-    flex: 1,
+    width: Dimensions.get('window').width / 7 - 32 / 7, // Ensure each cell has the same width
     textAlign: 'center',
     fontSize: 14,
     color: '#333333',
@@ -283,8 +301,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center', // Center vertically
     alignItems: 'center', // Center horizontally
   },
+  tableCellDone: {
+    backgroundColor: 'green', // Highlight cell in green when QuantityDone equals Quantity
+  },
   tableHeader: {
-    flex: 1,
+    width: Dimensions.get('window').width / 7 - 32 / 7, // Ensure each header cell has the same width
     textAlign: 'center',
     fontSize: 14,
     color: '#333333',
