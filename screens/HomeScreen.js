@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, TextInput, ScrollView, Platform, Dimensions, Button } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, TextInput, Platform, Dimensions, Button, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { ProgressBar } from 'react-native-paper';
 import { ref, onValue, update } from 'firebase/database';
@@ -10,8 +10,10 @@ const HomeScreen = ({ navigation, route }) => {
   const [selectedProject, setSelectedProject] = useState('');
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [totalQuantity, setTotalQuantity] = useState(0);
+  const [totalQuantityDone, setTotalQuantityDone] = useState(0);
+  const [selectedPOSNO, setSelectedPOSNO] = useState('');
+  const [quantity, setQuantity] = useState('');
 
   useEffect(() => {
     const projectsRef = ref(database, 'projects/');
@@ -36,27 +38,15 @@ const HomeScreen = ({ navigation, route }) => {
     setSelectedProject(projectId);
     if (projectId.trim() === '') {
       setFilteredRecords([]);
+      setTotalQuantity(0);
+      setTotalQuantityDone(0);
     } else {
       const selectedProject = projects.find(project => project.id === projectId);
       if (selectedProject) {
-        setFilteredRecords(selectedProject.records.slice(0, 5)); // Load initial 5 records
-        setPage(1);
+        setFilteredRecords(selectedProject.records); // Load all records
+        setTotalQuantity(selectedProject.records.reduce((sum, record) => sum + parseFloat(record.Quantity || 0), 0));
+        setTotalQuantityDone(selectedProject.records.reduce((sum, record) => sum + parseFloat(record.QuantityDone || 0), 0));
       }
-    }
-  };
-
-  const loadMore = (direction) => {
-    if (!isFetchingMore && selectedProject) {
-      setIsFetchingMore(true);
-      const nextPage = direction === 'next' ? page + 1 : page - 1;
-      const startIndex = (nextPage - 1) * 5;
-      const selectedProjectData = projects.find(project => project.id === selectedProject);
-      if (selectedProjectData) {
-        const newRecords = selectedProjectData.records.slice(startIndex, startIndex + 5);
-        setFilteredRecords(newRecords);
-        setPage(nextPage);
-      }
-      setIsFetchingMore(false);
     }
   };
 
@@ -79,22 +69,53 @@ const HomeScreen = ({ navigation, route }) => {
     // Update the database
     const projectRef = ref(database, `projects/${selectedProject}/records/${index}`);
     update(projectRef, { [field]: value });
+
+    // Update total quantities
+    const selectedProjectData = projects.find(project => project.id === selectedProject);
+    if (selectedProjectData) {
+      setTotalQuantity(selectedProjectData.records.reduce((sum, record) => sum + parseFloat(record.Quantity || 0), 0));
+      setTotalQuantityDone(selectedProjectData.records.reduce((sum, record) => sum + parseFloat(record.QuantityDone || 0), 0));
+    }
   };
 
   const calculateProgress = () => {
-    const totalQuantity = filteredRecords.reduce((sum, record) => sum + parseFloat(record.Quantity || 0), 0);
-    const totalQuantityDone = filteredRecords.reduce((sum, record) => sum + parseFloat(record.QuantityDone || 0), 0);
     return totalQuantity ? totalQuantityDone / totalQuantity : 0;
+  };
+
+  const handleAddProduction = () => {
+    if (!selectedPOSNO || !quantity) {
+      Alert.alert('Hata', 'Lütfen bir POSNO seçin ve bir miktar girin.');
+      return;
+    }
+
+    const selectedProjectData = projects.find(project => project.id === selectedProject);
+    if (selectedProjectData) {
+      const recordIndex = selectedProjectData.records.findIndex(record => record.POSNO === selectedPOSNO);
+      if (recordIndex !== -1) {
+        const updatedRecords = [...selectedProjectData.records];
+        updatedRecords[recordIndex].QuantityDone = parseFloat(updatedRecords[recordIndex].QuantityDone || 0) + parseFloat(quantity);
+        updatedRecords[recordIndex].Date = new Date().toISOString();
+
+        // Update the database
+        const projectRef = ref(database, `projects/${selectedProject}/records/${recordIndex}`);
+        update(projectRef, { QuantityDone: updatedRecords[recordIndex].QuantityDone, Date: updatedRecords[recordIndex].Date });
+
+        // Update state
+        setFilteredRecords(updatedRecords);
+        setTotalQuantityDone(updatedRecords.reduce((sum, record) => sum + parseFloat(record.QuantityDone || 0), 0));
+        setQuantity('');
+      }
+    }
   };
 
   const renderTableHeader = () => (
     <View style={styles.tableRow}>
-      <Text style={[styles.tableCell, styles.tableHeader]}>Quantity Done</Text>
-      <Text style={[styles.tableCell, styles.tableHeader]}>Quantity Sent</Text>
+      <Text style={[styles.tableCell, styles.tableHeader]}>Yapılan Miktar</Text>
+      <Text style={[styles.tableCell, styles.tableHeader]}>Gönderilen Miktar</Text>
       <Text style={[styles.tableCell, styles.tableHeader]}>POSNO</Text>
-      <Text style={[styles.tableCell, styles.tableHeader]}>Quantity</Text>
-      <Text style={[styles.tableCell, styles.tableHeader]}>Profile</Text>
-      <Text style={[styles.tableCell, styles.tableHeader]}>Weight</Text>
+      <Text style={[styles.tableCell, styles.tableHeader]}>Miktar</Text>
+      <Text style={[styles.tableCell, styles.tableHeader]}>Profil</Text>
+      <Text style={[styles.tableCell, styles.tableHeader]}>Ağırlık</Text>
       <Text style={[styles.tableCell, styles.tableHeader]}>PDF</Text>
     </View>
   );
@@ -122,56 +143,58 @@ const HomeScreen = ({ navigation, route }) => {
         onPress={() => openPdf(item.PdfFileURL)}
         disabled={!item.PdfFileURL}
       >
-        <Text style={styles.pdfButtonText}>Open PDF</Text>
+        <Text style={styles.pdfButtonText}>PDF Aç</Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>Select Project</Text>
+      <Text style={styles.label}>Proje Seç</Text>
       <Picker
         selectedValue={selectedProject}
         style={styles.picker}
         onValueChange={(itemValue) => handleProjectChange(itemValue)}
       >
-        <Picker.Item label="Select Project" value="" />
+        <Picker.Item label="Proje Seç" value="" />
         {projects.map((project) => (
           <Picker.Item key={project.id} label={project.projectName} value={project.id} />
         ))}
       </Picker>
       <View style={styles.progressContainer}>
-        <Text>Progress: {Math.round(calculateProgress() * 100)}%</Text>
+        <Text>İlerleme: {Math.round(calculateProgress() * 100)}%</Text>
         <ProgressBar progress={calculateProgress()} style={styles.progressBar} />
       </View>
-      {Platform.OS === 'web' ? (
-        <ScrollView style={styles.tableContainer} contentContainerStyle={styles.scrollContent}>
-          {renderTableHeader()}
-          {filteredRecords.map((item, index) => renderTableRow({ item, index }))}
-          {isFetchingMore && <ActivityIndicator size="large" color="#007bff" />}
-        </ScrollView>
-      ) : (
-        <FlatList
-          data={filteredRecords}
-          keyExtractor={(item, index) => index.toString()}
-          ListHeaderComponent={renderTableHeader}
-          renderItem={renderTableRow}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          contentContainerStyle={styles.table}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={isFetchingMore ? <ActivityIndicator size="large" color="#007bff" /> : null}
+      <View style={styles.productionEntryContainer}>
+        <Picker
+          selectedValue={selectedPOSNO}
+          style={styles.productionPicker}
+          onValueChange={(itemValue) => setSelectedPOSNO(itemValue)}
+        >
+          <Picker.Item label="POSNO Seç" value="" />
+          {projects.find(project => project.id === selectedProject)?.records.map((record) => (
+            <Picker.Item key={record.POSNO} label={record.POSNO} value={record.POSNO} />
+          ))}
+        </Picker>
+        <TextInput
+          style={styles.quantityInput}
+          value={quantity}
+          onChangeText={setQuantity}
+          placeholder="Miktar girin"
+          keyboardType="numeric"
         />
-      )}
-      <View style={styles.paginationContainer}>
-        <Button title="Previous" onPress={() => loadMore('prev')} disabled={page === 1} />
-        <Button title="Next" onPress={() => loadMore('next')} />
+        <Button title="Üretim Ekle" onPress={handleAddProduction} />
       </View>
-      {loading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007bff" />
-          <Text>Loading PDF...</Text>
-        </View>
-      )}
+      <ScrollView style={styles.tableContainer} contentContainerStyle={styles.scrollContent}>
+        {renderTableHeader()}
+        {filteredRecords.map((item, index) => renderTableRow({ item, index }))}
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007bff" />
+            <Text>PDF Yükleniyor...</Text>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 };
@@ -201,6 +224,33 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
   },
+  productionEntryContainer: {
+    width: '80%',
+    flexDirection: 'column', // Change to column to stack elements vertically
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ffffff', // Add background color for better visibility
+    padding: 10, // Add padding for spacing
+    borderRadius: 5, // Add border radius for rounded corners
+    shadowColor: '#000', // Add shadow for better visibility
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2, // Add elevation for Android shadow
+    marginBottom: 20, // Add margin bottom for spacing
+  },
+  productionPicker: {
+    width: '100%', // Ensure the picker takes up the full width
+    marginBottom: 10, // Add margin bottom for spacing
+  },
+  quantityInput: {
+    height: 40,
+    borderColor: '#cccccc',
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 10, // Add margin bottom for spacing
+    width: '100%', // Ensure the input takes up the full width
+  },
   tableContainer: {
     width: '100%',
     marginTop: 20,
@@ -210,7 +260,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   table: {
-    width: '100%',
+    width: Dimensions.get('window').width - 32, // Adjust the width to fit the screen
     borderWidth: 1,
     borderColor: '#cccccc',
     borderRadius: 5,
@@ -218,6 +268,7 @@ const styles = StyleSheet.create({
   },
   tableRow: {
     flexDirection: 'row',
+    flex: 1,
   },
   tableCell: {
     flex: 1,
@@ -233,6 +284,15 @@ const styles = StyleSheet.create({
     alignItems: 'center', // Center horizontally
   },
   tableHeader: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 14,
+    color: '#333333',
+    padding: 10,
+    borderRightWidth: 1,
+    borderRightColor: '#cccccc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#cccccc',
     backgroundColor: '#f0f0f0',
     fontWeight: 'bold',
     justifyContent: 'center', // Center vertically
@@ -277,12 +337,6 @@ const styles = StyleSheet.create({
     left: '50%',
     transform: [{ translateX: -50 }, { translateY: -50 }],
     alignItems: 'center',
-  },
-  paginationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '80%',
-    marginTop: 20,
   },
 });
 
